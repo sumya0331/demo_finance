@@ -1,41 +1,42 @@
 
-
 import streamlit as st
 import pandas as pd
-import os
 import matplotlib.pyplot as plt
 
-
 st.set_page_config(page_title="Financial Dashboard", layout="wide")
-st.title("Financial Dashboard Demo (Enhanced & Compact)")
+st.title("Financial Dashboard Demo (Enhanced & Upload)")
 
 
-folder = r"C:\Financial_Demo\Raw_Data"
-if not os.path.exists(folder):
-    st.error(f"Folder '{folder}' олдсонгүй! Raw_Data folder-ийг '{folder}'-д үүсгэнэ үү.")
+uploaded_files = st.file_uploader(
+    "Upload Excel files",
+    type=["xlsx"],
+    accept_multiple_files=True
+)
+
+if not uploaded_files:
+    st.warning("Excel файлуудаа upload хийнэ үү.")
     st.stop()
 
 
 @st.cache_data(ttl=60)
-def load_data():
-    files = [f for f in os.listdir(folder) if f.endswith('.xlsx') and not f.startswith('~$')]
+def load_data(files):
     all_data = []
-    for file in files:
-        df = pd.read_excel(os.path.join(folder, file))
+    for uploaded_file in files:
+        df = pd.read_excel(uploaded_file)
         df.columns = [c.strip() for c in df.columns]  
 
-        
+
         if 'Month' in df.columns:
             df['Month'] = pd.to_datetime(df['Month'], errors='coerce')
         elif 'Data' in df.columns:
             df['Month'] = pd.to_datetime(df['Data'], errors='coerce')
         else:
-            st.warning(f"{file} файлын Month/Data column олдсонгүй!")
+            st.warning(f"{uploaded_file.name} файлын Month/Data column олдсонгүй!")
             continue
 
         required_cols = ['Product', 'Branch', 'Income', 'Expense']
         if not all(c in df.columns for c in required_cols):
-            st.warning(f"{file} файлын required columns тохирохгүй байна! Columns: {df.columns.tolist()}")
+            st.warning(f"{uploaded_file.name} файлын required columns тохирохгүй байна! Columns: {df.columns.tolist()}")
             continue
 
         df['Profit'] = df['Income'] - df['Expense']
@@ -45,21 +46,11 @@ def load_data():
         st.error("Excel файлуудаас ямар ч датаг уншиж чадсангүй!")
         st.stop()
 
-   
     df_all = pd.concat(all_data, ignore_index=True)
     df_all['MonthInt'] = df_all['Month'].dt.year*100 + df_all['Month'].dt.month
     return df_all
 
-
-if 'refresh' not in st.session_state:
-    st.session_state.refresh = 0
-
-if st.button("Refresh Data"):
-    st.session_state.refresh += 1
-    st.cache_data.clear()  
-
-
-df_all = load_data()
+df_all = load_data(uploaded_files)
 
 
 product_filter = st.multiselect(
@@ -73,7 +64,6 @@ branch_filter = st.multiselect(
     options=df_all['Branch'].unique(),
     default=df_all['Branch'].unique()
 )
-
 
 min_month = int(df_all['MonthInt'].min())
 max_month = int(df_all['MonthInt'].max())
